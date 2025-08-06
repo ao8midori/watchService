@@ -357,11 +357,11 @@ class MacNotifier : PlatformNotifier {
         try {
             // まずAppleScriptの権限を確認
             checkAppleScriptPermission()
-            
+
             // AppleScriptを使用してネイティブ通知を表示
             val escapedTitle = title.replace("\"", "\\\"").replace("'", "\\'")
             val escapedMessage = message.replace("\"", "\\\"").replace("'", "\\'")
-            
+
             // より確実な通知方法
             val script = """
                 try
@@ -372,24 +372,18 @@ class MacNotifier : PlatformNotifier {
                     end tell
                 end try
             """.trimIndent()
-            
+
             val process = ProcessBuilder("osascript", "-e", script)
                 .redirectErrorStream(true)
                 .start()
-            
+
             // プロセスの出力を取得
             val output = process.inputStream.bufferedReader().use { it.readText() }
             val exitCode = process.waitFor()
-            
+
             println("AppleScript実行結果: exitCode=$exitCode, output=$output")
-            
-            if (exitCode != 0) {
-                println("AppleScript実行に失敗しました。代替方法を試します...")
-                tryTerminalNotifier(title, message)
-            }
         } catch (e: Exception) {
-            println("Mac通知の表示に失敗しました: ${e.message}")
-            tryTerminalNotifier(title, message)
+            println("通知に失敗しました: ${e.message}")
         }
     }
     
@@ -413,36 +407,7 @@ class MacNotifier : PlatformNotifier {
         }
     }
     
-    /**
-     * terminal-notifierを使用した代替通知方法
-     */
-    private fun tryTerminalNotifier(title: String, message: String) {
-        try {
-            // HomebrewでインストールされたTerminal-notifierを確認
-            val which = ProcessBuilder("which", "terminal-notifier").start()
-            val terminalNotifierPath = which.inputStream.bufferedReader().use { it.readText().trim() }
-            
-            if (terminalNotifierPath.isNotEmpty()) {
-                val process = ProcessBuilder(
-                    "terminal-notifier",
-                    "-message", message,
-                    "-title", title,
-                    "-sound", "Glass"
-                ).start()
-                
-                val exitCode = process.waitFor()
-                if (exitCode == 0) {
-                    println("terminal-notifierで通知を表示しました")
-                    return
-                }
-            }
-        } catch (e: Exception) {
-            println("terminal-notifierも利用できませんでした: ${e.message}")
-        }
-        
-        // 最終的にトレイ通知にフォールバック
-        fallbackToTrayNotification(title, message, MessageType.INFO)
-    }
+
     
     override fun cleanup() {
         // 特に必要なクリーンアップはない
