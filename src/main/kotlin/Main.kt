@@ -13,13 +13,6 @@
  */
 package com.posifro
 
-import com.sun.jna.Native
-import com.sun.jna.Pointer
-import com.sun.jna.WString
-import com.sun.jna.platform.win32.Shell32
-import com.sun.jna.platform.win32.WinDef.HICON
-import com.sun.jna.platform.win32.WinDef.HWND
-import com.sun.jna.win32.StdCallLibrary
 import java.awt.*
 import java.awt.TrayIcon.MessageType
 import java.awt.event.WindowAdapter
@@ -181,26 +174,18 @@ class FileWatcherApp : JFrame("ファイル監視") {
                     ENTRY_MODIFY
                 )
                 
-                // macOS用のポーリング間隔（ミリ秒）
-                val pollingInterval = if (isMacOS) 200L else 0L
-                var lastCheckTime = System.currentTimeMillis()
-                
+                // macOS用の待機時間（ミリ秒）
+                val waitTime = if (isMacOS) 200L else 0L
+
                 while (running) {
                     val key = try {
                         if (isMacOS) {
                             // macOSではポーリング方式を使用
                             val pollResult = watchService?.poll()
-                            
-                            // 定期的にファイルリストを更新（macOSのみ）
-                            val currentTime = System.currentTimeMillis()
-                            if (currentTime - lastCheckTime > pollingInterval) {
-                                lastCheckTime = currentTime
-                                SwingUtilities.invokeLater { refreshFileList() }
-                            }
-                            
+
                             // キーがなければ少し待機してループ継続
                             if (pollResult == null) {
-                                Thread.sleep(pollingInterval)
+                                Thread.sleep(waitTime)
                                 continue
                             }
                             pollResult
@@ -211,18 +196,24 @@ class FileWatcherApp : JFrame("ファイル監視") {
                     } catch (e: InterruptedException) {
                         break
                     }
-                    
+
+                    // イベントが発生したかどうかを追跡
+                    var eventOccurred = false
+
                     for (event in key.pollEvents()) {
                         val kind = event.kind()
-                        
+
                         if (kind == OVERFLOW) {
                             continue
                         }
-                        
+
+                        // イベントが発生したことを記録
+                        eventOccurred = true
+
                         // イベントの詳細を取得
                         val watchEvent = event as WatchEvent<Path>
                         val filename = watchEvent.context().toString()
-                        
+
                         // イベントタイプに応じた通知を表示
                         when (kind) {
                             ENTRY_CREATE -> {
@@ -253,8 +244,10 @@ class FileWatcherApp : JFrame("ファイル監視") {
                                 }
                             }
                         }
-                        
-                        // ファイルリストを更新
+                    }
+
+                    // イベントが発生した場合のみファイルリストを更新
+                    if (eventOccurred) {
                         SwingUtilities.invokeLater { refreshFileList() }
                     }
                     
